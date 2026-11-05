@@ -1,0 +1,16 @@
+fastapi>=0.115.0
+uvicorn>=0.32.0
+python-multipart>=0.0.12
+pydantic>=2.8.0
+numpy>=1.24.0,<2.0.0
+Pillow>=10.0.0
+opencv-python-headless>=4.8.0
+onnx>=1.14.0
+onnxruntime>=1.17.0
+tqdm>=4.65.0
+requests>=2.31.0
+scipy>=1.10.0
+scikit-image>=0.20.0
+prettytable>=3.0.0
+easydict>=1.9
+aiofiles>=24.1.0

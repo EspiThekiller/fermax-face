@@ -1,0 +1,15 @@
+.git
+.gitignore
+.dockerignore
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+data/
+known_faces/
+*.md
+deploy.sh
+.pytest_cache
+.vscode
+.idea

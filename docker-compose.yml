@@ -1,0 +1,23 @@
+services:
+  fermax-face:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: fermax-face-service:latest
+    container_name: fermax-face-service
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      - "${DATA_PATH:-./data}:/app/data"
+      - "${KNOWN_FACES_PATH:-./known_faces}:/app/known_faces"
+      - insightface_models:/root/.insightface/models
+    environment:
+      - DATA_DIR=/app/data
+      - KNOWN_FACES_DIR=/app/known_faces
+      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-0.65}
+      - DET_SIZE=${DET_SIZE:-320}
+
+volumes:
+  insightface_models:
+    name: fermax-face_insightface_models
