@@ -23,24 +23,31 @@ Impulsado por **FastAPI**, **InsightFace** (modelo `buffalo_s`) y **ONNX Runtime
 
 ---
 
-## 🚀 Despliegue Rápido Interactivo (`deploy.sh`)
+## 🚀 Instalación y Despliegue en 1 Solo Comando (Sin git clone)
 
-El repositorio incluye un script interactivo que te guía paso a paso y configura todo en segundos:
+No necesitas clonar el repositorio ni tener `git` instalado. En cualquier máquina con Docker, ejecuta simplemente:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/EspiThekiller/fermax-face/main/deploy.sh | bash
+```
+*(O alternativamente: `bash <(curl -sSL https://raw.githubusercontent.com/EspiThekiller/fermax-face/main/deploy.sh)`)*
+
+El asistente interactivo:
+1. Descarga automáticamente el proyecto en la carpeta que elijas (por defecto `./fermax-face`).
+2. Te pide por pantalla de forma interactiva las rutas y opciones deseadas (o pulsa `[ENTER]` para aceptar los valores por defecto).
+3. Levanta y monta el contenedor con Docker Compose o Docker Run.
+4. Comprueba la salud del servicio y te muestra el enlace web y las credenciales iniciales de administrador.
+
+---
+
+## 🛠️ Despliegue Local (Si ya tienes el repositorio descargado)
+
+Si ya estás dentro de la carpeta del proyecto, ejecuta:
 
 ```bash
 chmod +x deploy.sh
 ./deploy.sh
 ```
-
-El asistente te preguntará de forma sencilla:
-1. **Puerto del servicio** (por defecto: `8000`).
-2. **Ruta del directorio de datos** (donde se guardan usuarios, tokens e historial; por ejemplo `./data` o `/opt/fermax-face/data`).
-3. **Ruta del directorio de caras conocidas** (donde se almacenan las fotos de personas registradas; por ejemplo `./known_faces` o `/opt/fermax-face/known_faces`).
-4. **Umbral de similitud** (por defecto: `0.65`).
-5. **Tamaño de detección** (por defecto: `320` para máxima velocidad en CPU, o `640` para mayor resolución).
-6. **Método de arranque** (Construir imagen localmente o usar imagen existente).
-
-¡El script creará las carpetas, generará el `.env`, construirá y levantará el contenedor, esperará al healthcheck y te mostrará la contraseña de administrador si es el primer arranque!
 
 ---
 

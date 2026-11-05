@@ -8,11 +8,30 @@ set -e
 # Colores para salida interactiva
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\1;33m'
-BLUE='\0;34m'
-CYAN='\0;36m'
-BOLD='\1m'
-NC='\0m' # No Color
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+# Función para lectura interactiva segura (compatible con pipes como 'curl ... | bash')
+prompt_read() {
+    local prompt_msg="$1"
+    local var_name="$2"
+    local default_val="$3"
+    local input=""
+
+    if [ -t 0 ]; then
+        read -rp "$prompt_msg" input
+    elif [ -e /dev/tty ]; then
+        read -rp "$prompt_msg" input < /dev/tty
+    else
+        input=""
+    fi
+
+    input="${input:-$default_val}"
+    printf -v "$var_name" '%s' "$input"
+}
 
 clear 2>/dev/null || true
 
@@ -32,7 +51,7 @@ echo -e "${CYAN}Este asistente configurará y levantará el contenedor de Fermax
 echo -e "${CYAN}Presiona [ENTER] en cualquier opción para aceptar el valor sugerido por defecto.${NC}\n"
 
 # ------------------------------------------------------------------------------
-# 1. Comprobación de Requisitos (Docker / Docker Compose)
+# 1. Comprobación de Requisitos (Docker / Docker Compose / Curl / Tar)
 # ------------------------------------------------------------------------------
 if ! command -v docker &> /dev/null; then
     echo -e "${RED}[ERROR] Docker no está instalado en este sistema.${NC}"
@@ -48,40 +67,59 @@ elif command -v docker-compose &> /dev/null; then
 fi
 
 # ------------------------------------------------------------------------------
-# 2. Configuración Interactiva de Parámetros
+# 2. Auto-descarga / Comprobación del Código Fuente (Sin necesidad de git clone)
+# ------------------------------------------------------------------------------
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "$PWD")"
+
+if [ ! -f "${SCRIPT_DIR}/Dockerfile" ]; then
+    echo -e "${YELLOW}No se han detectado los archivos del proyecto en la carpeta actual.${NC}"
+    DEFAULT_INSTALL_DIR="./fermax-face"
+    prompt_read "$(echo -e "${BOLD}¿Dónde deseas instalar Fermax Face?${NC} [${GREEN}${DEFAULT_INSTALL_DIR}${NC}]: ")" TARGET_INSTALL_DIR "$DEFAULT_INSTALL_DIR"
+
+    mkdir -p "$TARGET_INSTALL_DIR"
+    echo -e "${BLUE}Descargando última versión desde GitHub...${NC}"
+    if command -v curl &> /dev/null; then
+        curl -sSL "https://github.com/EspiThekiller/fermax-face/archive/refs/heads/main.tar.gz" | tar -xz --strip-components=1 -C "$TARGET_INSTALL_DIR"
+    elif command -v wget &> /dev/null; then
+        wget -qO- "https://github.com/EspiThekiller/fermax-face/archive/refs/heads/main.tar.gz" | tar -xz --strip-components=1 -C "$TARGET_INSTALL_DIR"
+    else
+        echo -e "${RED}[ERROR] Se necesita 'curl' o 'wget' para descargar los archivos.${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Archivos del proyecto descargados en ${TARGET_INSTALL_DIR}${NC}\n"
+    cd "$TARGET_INSTALL_DIR"
+    SCRIPT_DIR="$PWD"
+fi
+
+# ------------------------------------------------------------------------------
+# 3. Configuración Interactiva de Parámetros
 # ------------------------------------------------------------------------------
 
 # Puerto
 DEFAULT_PORT="8000"
-read -rp "$(echo -e "${BOLD}1. Puerto de escucha en el host${NC} [${GREEN}${DEFAULT_PORT}${NC}]: ")" INPUT_PORT
-PORT="${INPUT_PORT:-$DEFAULT_PORT}"
+prompt_read "$(echo -e "${BOLD}1. Puerto de escucha en el host${NC} [${GREEN}${DEFAULT_PORT}${NC}]: ")" PORT "$DEFAULT_PORT"
 
 # Directorio de Datos
 DEFAULT_DATA="./data"
-read -rp "$(echo -e "${BOLD}2. Ruta en el host para DATOS (seguridad, historial)${NC} [${GREEN}${DEFAULT_DATA}${NC}]: ")" INPUT_DATA
-DATA_PATH="${INPUT_DATA:-$DEFAULT_DATA}"
+prompt_read "$(echo -e "${BOLD}2. Ruta en el host para DATOS (seguridad, historial)${NC} [${GREEN}${DEFAULT_DATA}${NC}]: ")" DATA_PATH "$DEFAULT_DATA"
 
 # Directorio de Caras Conocidas
 DEFAULT_FACES="./known_faces"
-read -rp "$(echo -e "${BOLD}3. Ruta en el host para FOTOS de personas registradas${NC} [${GREEN}${DEFAULT_FACES}${NC}]: ")" INPUT_FACES
-KNOWN_FACES_PATH="${INPUT_FACES:-$DEFAULT_FACES}"
+prompt_read "$(echo -e "${BOLD}3. Ruta en el host para FOTOS de personas registradas${NC} [${GREEN}${DEFAULT_FACES}${NC}]: ")" KNOWN_FACES_PATH "$DEFAULT_FACES"
 
 # Umbral de Similitud
 DEFAULT_THRESHOLD="0.65"
-read -rp "$(echo -e "${BOLD}4. Umbral de similitud biométrica (0.0 a 1.0)${NC} [${GREEN}${DEFAULT_THRESHOLD}${NC}]: ")" INPUT_THRESH
-SIMILARITY_THRESHOLD="${INPUT_THRESH:-$DEFAULT_THRESHOLD}"
+prompt_read "$(echo -e "${BOLD}4. Umbral de similitud biométrica (0.0 a 1.0)${NC} [${GREEN}${DEFAULT_THRESHOLD}${NC}]: ")" SIMILARITY_THRESHOLD "$DEFAULT_THRESHOLD"
 
 # Tamaño de Detección
 DEFAULT_DET_SIZE="320"
-read -rp "$(echo -e "${BOLD}5. Tamaño de ventana de detección (320 = CPU rápido, 640 = alta resolución)${NC} [${GREEN}${DEFAULT_DET_SIZE}${NC}]: ")" INPUT_DET
-DET_SIZE="${INPUT_DET:-$DEFAULT_DET_SIZE}"
+prompt_read "$(echo -e "${BOLD}5. Tamaño de ventana de detección (320 = CPU rápido, 640 = alta resolución)${NC} [${GREEN}${DEFAULT_DET_SIZE}${NC}]: ")" DET_SIZE "$DEFAULT_DET_SIZE"
 
 # Acción de construcción de imagen
 echo -e "\n${BOLD}6. Opciones de imagen Docker:${NC}"
 echo "   1) Construir imagen localmente desde el Dockerfile (Recomendado)"
 echo "   2) Usar imagen local existente 'fermax-face-service:latest'"
-read -rp "$(echo -e "Selecciona una opción [${GREEN}1${NC}]: ")" INPUT_BUILD_OPT
-BUILD_OPT="${INPUT_BUILD_OPT:-1}"
+prompt_read "$(echo -e "Selecciona una opción [${GREEN}1${NC}]: ")" BUILD_OPT "1"
 
 # Método de orquestación
 ORCH_METHOD="compose"
@@ -92,16 +130,17 @@ else
     echo -e "\n${BOLD}7. Método de despliegue:${NC}"
     echo "   1) Docker Compose (${COMPOSE_CMD})"
     echo "   2) Docker Run directo"
-    read -rp "$(echo -e "Selecciona una opción [${GREEN}1${NC}]: ")" INPUT_ORCH
+    prompt_read "$(echo -e "Selecciona una opción [${GREEN}1${NC}]: ")" INPUT_ORCH "1"
     if [ "$INPUT_ORCH" = "2" ]; then
         ORCH_METHOD="run"
     fi
 fi
 
 # ------------------------------------------------------------------------------
-# 3. Resumen y Confirmación
+# 4. Resumen y Confirmación
 # ------------------------------------------------------------------------------
 echo -e "\n${BOLD}--- Resumen de Configuración ---${NC}"
+echo -e "  - Carpeta de Proyecto:    ${GREEN}${SCRIPT_DIR}${NC}"
 echo -e "  - Puerto:                 ${GREEN}${PORT}${NC}"
 echo -e "  - Directorio Datos:       ${GREEN}${DATA_PATH}${NC}"
 echo -e "  - Directorio Fotos:       ${GREEN}${KNOWN_FACES_PATH}${NC}"
@@ -110,20 +149,18 @@ echo -e "  - Tamaño Detección:       ${GREEN}${DET_SIZE}${NC}"
 echo -e "  - Método de Despliegue:   ${GREEN}${ORCH_METHOD}${NC}"
 echo -e "--------------------------------\n"
 
-read -rp "$(echo -e "¿Deseas proceder con el despliegue? (${BOLD}S/n${NC}): ")" CONFIRM
-CONFIRM="${CONFIRM:-s}"
+prompt_read "$(echo -e "¿Deseas proceder con el despliegue? (${BOLD}S/n${NC}): ")" CONFIRM "s"
 if [[ ! "$CONFIRM" =~ ^[sSyY]$ ]]; then
     echo -e "${YELLOW}Despliegue cancelado por el usuario.${NC}"
     exit 0
 fi
 
 # ------------------------------------------------------------------------------
-# 4. Creación de Directorios y Fichero .env
+# 5. Creación de Directorios y Fichero .env
 # ------------------------------------------------------------------------------
 echo -e "\n${BLUE}[1/4] Creando directorios y configuraciones...${NC}"
 mkdir -p "$DATA_PATH" "$KNOWN_FACES_PATH"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 
 cat > "$ENV_FILE" << EOF
@@ -136,7 +173,7 @@ EOF
 echo -e "${GREEN}✓ Fichero .env generado con éxito en ${ENV_FILE}${NC}"
 
 # ------------------------------------------------------------------------------
-# 5. Construcción / Preparación de Imagen
+# 6. Construcción / Preparación de Imagen
 # ------------------------------------------------------------------------------
 IMAGE_NAME="fermax-face-service:latest"
 CONTAINER_NAME="fermax-face-service"
@@ -150,7 +187,7 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# 6. Lanzamiento del Contenedor
+# 7. Lanzamiento del Contenedor
 # ------------------------------------------------------------------------------
 echo -e "\n${BLUE}[3/4] Levantando contenedor...${NC}"
 
@@ -184,7 +221,7 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# 7. Verificación de Estado y Healthcheck
+# 8. Verificación de Estado y Healthcheck
 # ------------------------------------------------------------------------------
 echo -e "\n${BLUE}[4/4] Verificando salud del servicio...${NC}"
 printf "Esperando a que la API esté lista"
